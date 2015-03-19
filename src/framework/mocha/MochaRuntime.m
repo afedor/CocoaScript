@@ -485,8 +485,13 @@ NSString * const MOAlreadyProtectedKey = @"moAlreadyProtectedKey";
     }
     
     box.JSObject = jsObject;
+    [box protectObject];
     
-    [_objectsToBoxes setObject:box forKey:key];
+    [_objectsToBoxes setObject:box forKey: key];
+    if ([_objectsToBoxes count] > 5000) {
+        [self sweepBoxesWithTimeout: 0.1];
+    }
+    
     
     return jsObject;
 }
@@ -506,6 +511,21 @@ NSString * const MOAlreadyProtectedKey = @"moAlreadyProtectedKey";
     }
 }
 
+/* Unprotects and removes boxed objects that haven't been used in a while */
+- (void) sweepBoxesWithTimeout: (NSTimeInterval)timeout
+{
+    NSMutableArray *expiredKeys = [NSMutableArray array];
+    for (id object in _objectsToBoxes) {
+        MOBox *box = [_objectsToBoxes objectForKey: object];
+        if (fabs([[box lastAccessDate] timeIntervalSinceNow]) > timeout) {
+            [box unprotectObject];
+            [expiredKeys addObject: object];
+        }
+    }
+    for (id object in expiredKeys) {
+        [self removeBoxAssociationForObject: [(MOObjectKey *)object keyObject]];
+    }
+}
 
 #pragma mark -
 #pragma mark Object Storage
@@ -685,12 +705,13 @@ NSString * const MOAlreadyProtectedKey = @"moAlreadyProtectedKey";
     if (jsArguments != NULL) {
         free(jsArguments);
     }
+    [self sweepBoxesWithTimeout: 0.1];
     
     if (exception != NULL) {
         [self throwJSException:exception];
         return NULL;
     }
-    
+
     return returnValue;
 }
 
