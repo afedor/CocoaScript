@@ -57,9 +57,4 @@
   }
 }
 
-- (void)dealloc {
-    // debug(@"MOBox dealloc releasing: '%@'", _representedObject);
-}
-
-
 @end
