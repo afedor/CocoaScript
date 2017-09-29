@@ -29,6 +29,8 @@
 
 - (void)dealloc {
     //debug(@"MOBox dealloc releasing: '%@'", _representedObjectCanaryDesc);
+    if (objectIsProtected)
+      [self unprotectObject];
 }
 
 - (void)setRepresentedObject:(id)representedObject {
@@ -49,12 +51,6 @@
 
 - (id)representedObject {
     return _representedObject;
-}
-
-- (void)dealloc
-{
-  if (objectIsProtected)
-    [self unprotectObject];
 }
 
 - (JSObjectRef)JSObject
