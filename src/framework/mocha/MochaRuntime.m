@@ -822,13 +822,27 @@ NSString * const MOAlreadyProtectedKey = @"moAlreadyProtectedKey";
     NSString *libPath = [frameworkPath stringByAppendingPathComponent:frameworkName];
     void *address = dlopen([libPath UTF8String], RTLD_LAZY);
     if (!address) {
-        //NSLog(@"ERROR: Could not load framework dylib: %@, %@", frameworkName, libPath);
+        NSLog(@"ERROR: Could not load framework dylib: %@, %@", frameworkName, libPath);
         return NO;
     }
+    
     
     // Load the BridgeSupport data
     NSString *bridgeSupportPath = [frameworkPath stringByAppendingPathComponent:[NSString stringWithFormat:@"Resources/BridgeSupport"]];
     [self loadBridgeSupportFilesAtPath:bridgeSupportPath];
+    
+    // Check for any overrides by us.
+    NSBundle *frameworkBundle = [NSBundle bundleForClass:[self class]];
+    bridgeSupportPath = [frameworkBundle pathForResource:frameworkName ofType:@"bridgesupport" inDirectory:@"BridgeSupport"];
+    if (bridgeSupportPath) {
+        
+        NSError *error = nil;
+        if (![[MOBridgeSupportController sharedController] loadBridgeSupportAtURL:[NSURL fileURLWithPath:bridgeSupportPath] error:&error]) {
+            NSLog(@"Error loading bridge support file at %@", bridgeSupportPath);
+            NSLog(@"%@", error);
+        }
+    }
+    
     
     return YES;
 }
@@ -1190,7 +1204,24 @@ JSValueRef Mocha_getProperty(JSContextRef ctx, JSObjectRef object, JSStringRef p
 
 static void MOObject_initialize(JSContextRef ctx, JSObjectRef object) {
     MOBox *private = (__bridge MOBox *)(JSObjectGetPrivate(object));
+    
+    //debug(@"[private representedObject]: '%@'", [private representedObject]);
+    //debug(@"[[private representedObject] valueForKey:@\"retainCount\"]: %@", [[private representedObject] valueForKey:@"retainCount"]);
+    
+    //int before = [[[private representedObject] valueForKey:@"retainCount"] integerValue];
+    
+    // CFIndex b = CFGetRetainCount((__bridge CFTypeRef)private);
+    
     CFRetain((__bridge CFTypeRef)private);
+    
+    /*
+    if (CFGetRetainCount((__bridge CFTypeRef)private) <= b) {
+        debug(@"couldn't retain %@ / %@", private, [private representedObject]);
+        assert(NO);
+    }
+     */
+    
+    //debug(@"%p initialize %p (%ld)", private, [private representedObject], CFGetRetainCount((__bridge CFTypeRef)private));
     
     if (class_isMetaClass(object_getClass([private representedObject]))) {
         //debug(@"inited a local class object %@ - going to keep it protected %p", [private representedObject], object);
@@ -1201,6 +1232,14 @@ static void MOObject_initialize(JSContextRef ctx, JSObjectRef object) {
 
 static void MOObject_finalize(JSObjectRef object) {
     MOBox *private = (__bridge MOBox *)(JSObjectGetPrivate(object));
+    
+    if (![private representedObjectCanary]) {
+        NSLog(@"whoa- the canary is gone!  I'm not touching this stuff. (%@)", [private representedObjectCanaryDesc]);
+        return;
+    }
+    
+    
+    // debug(@"%p finalizing %ld", private, CFGetRetainCount((__bridge CFTypeRef)private));
     id o = [private representedObject];
     
     //debug(@"finalizing %@ o: %p", o, object);
