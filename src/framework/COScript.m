@@ -9,6 +9,7 @@
 #import "COScript.h"
 #import "COSListener.h"
 #import "COSPreprocessor.h"
+#import "COScript+Fiber.h"
 #import "COScript+Interval.h"
 
 #import <ScriptingBridge/ScriptingBridge.h>
@@ -91,7 +92,7 @@ void COScriptDebug(NSString* format, ...) {
     
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     
-    [self cleanupIntervals];
+    [self cleanupFibers];
     
 }
 
@@ -112,6 +113,16 @@ void COScriptDebug(NSString* format, ...) {
     [_mochaRuntime garbageCollect];
     
     debug(@"gc took %f seconds", [NSDate timeIntervalSinceReferenceDate] - start);
+}
+
+- (BOOL)shouldKeepRunning {
+    if (_shouldKeepAround) {
+        return YES;
+    }
+    if (_activeFibers != nil) {
+        return [_activeFibers count] > 0;
+    }
+    return NO;
 }
 
 
@@ -320,13 +331,12 @@ NSString *currentCOScriptThreadIdentifier = @"org.jstalk.currentCOScriptHack";
     if (!JSTalkPluginList && JSTalkShouldLoadJSTPlugins) {
         [COScript loadPlugins];
     }
+	
+    if (!base && [[_env objectForKey:@"scriptURL"] isKindOfClass:[NSURL class]]) {
+        base = [_env objectForKey:@"scriptURL"];
+    }
     
     if ([self shouldPreprocess]) {
-        
-        if (!base && [[_env objectForKey:@"scriptURL"] isKindOfClass:[NSURL class]]) {
-            base = [_env objectForKey:@"scriptURL"];
-        }
-        
         str = [COSPreprocessor preprocessCode:str withBaseURL:base];
     }
     
@@ -391,6 +401,11 @@ NSString *currentCOScriptThreadIdentifier = @"org.jstalk.currentCOScriptHack";
     @catch (NSException * e) {
         NSLog(@"Exception: %@", e);
         [self printException:e];
+        
+        NSDictionary *d = [e userInfo];
+        if ([_errorController respondsToSelector:@selector(coscript:hadError:onLineNumber:atSourceURL:)]) {
+            [_errorController coscript:self hadError:[e reason] onLineNumber:[[d objectForKey:@"line"] integerValue] atSourceURL:nil];
+        }
     }
     
     [self popAsCurrentCOScript];

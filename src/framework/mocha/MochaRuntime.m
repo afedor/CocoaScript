@@ -205,7 +205,7 @@ NSString * const MOAlreadyProtectedKey = @"moAlreadyProtectedKey";
         _ctx = ctx;
         _exportedObjects = [[NSMutableDictionary alloc] init];
         _objectsToBoxes = [NSMapTable
-                           mapTableWithKeyOptions:NSMapTableWeakMemory | NSMapTableObjectPointerPersonality
+                           mapTableWithKeyOptions:NSMapTableStrongMemory | NSMapTableObjectPointerPersonality
                            valueOptions:NSMapTableStrongMemory | NSMapTableObjectPointerPersonality];
         _frameworkSearchPaths = [[NSMutableArray alloc] initWithObjects:
                                  @"/System/Library/Frameworks",
@@ -1091,7 +1091,7 @@ JSValueRef Mocha_getProperty(JSContextRef ctx, JSObjectRef object, JSStringRef p
     // ObjC class
     //
     Class objCClass = NSClassFromString(propertyName);
-    if (objCClass && ![propertyName isEqualToString:@"Object"]) {
+    if (objCClass && ![propertyName isEqualToString:@"Object"] && ![propertyName isEqualToString:@"Function"]) {
         JSValueRef ret = [runtime JSValueForObject:objCClass];
         
         if (!objc_getAssociatedObject(objCClass, &MOAlreadyProtectedKey)) {
@@ -1174,7 +1174,7 @@ JSValueRef Mocha_getProperty(JSContextRef ctx, JSObjectRef object, JSStringRef p
 #if __LP64__
             NSNumber *value64 = [(MOBridgeSupportEnum *)symbol value64];
             if (value64 != nil) {
-                doubleValue = [value doubleValue];
+                doubleValue = [value64 doubleValue];
             }
             else {
 #endif
@@ -1232,12 +1232,6 @@ static void MOObject_initialize(JSContextRef ctx, JSObjectRef object) {
 
 static void MOObject_finalize(JSObjectRef object) {
     MOBox *private = (__bridge MOBox *)(JSObjectGetPrivate(object));
-    
-    if (![private representedObjectCanary]) {
-        NSLog(@"whoa- the canary is gone!  I'm not touching this stuff. (%@)", [private representedObjectCanaryDesc]);
-        return;
-    }
-    
     
     // debug(@"%p finalizing %ld", private, CFGetRetainCount((__bridge CFTypeRef)private));
     id o = [private representedObject];
@@ -1341,9 +1335,9 @@ static bool MOBoxedObject_hasProperty(JSContextRef ctx, JSObjectRef objectJS, JS
     SEL selector = MOSelectorFromPropertyName(propertyName);
     
     // calling methodSignatureForSelector: on a proxy when it doesn't respond to the selector will throw an exception and we'll crash.
-    // so we'll just look ahead and see if maybe it is because of a missing _
-    if (([object class] == [NSDistantObject class]) && ![object respondsToSelector:selector] && [object respondsToSelector:MOSelectorFromPropertyName([propertyName stringByAppendingString:@"_"])]) {
-        return YES;
+    // so we'll just look ahead and make a special case for it. We are assuming that a NSDistantObject doesn't specify a `isSelectorExcludedFromMochaScript`
+    if ([object class] == [NSDistantObject class]) {
+        return [object respondsToSelector:selector] || [object respondsToSelector:MOSelectorFromPropertyName([propertyName stringByAppendingString:@"_"])];
     }
     
     NSMethodSignature *methodSignature = [object methodSignatureForSelector:selector];
@@ -1492,7 +1486,7 @@ static JSValueRef MOBoxedObject_getProperty(JSContextRef ctx, JSObjectRef object
             }
             
             if ([object respondsToSelector:getterSelector] && ![objectClass isSelectorExcludedFromMochaScript:getterSelector]) {
-                MOMethod *method = [MOMethod methodWithTarget:object selector:selector];
+                MOMethod *method = [MOMethod methodWithTarget:object selector:getterSelector];
                 JSValueRef invocationValue = MOFunctionInvoke(method, ctx, 0, NULL, exception);
                 return invocationValue;
             }
