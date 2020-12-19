@@ -24,7 +24,6 @@ typedef void (^JSTTextViewDragHandler)(NSTextView *draggedObject, NSString *drag
     NSSet                   *_ignoredSymbols;
 }
 
-
 @property (retain) NSDictionary *keywords;
 @property (retain) NSString *lastAutoInsert;
 @property (retain) NSSet *ignoredSymbols;
@@ -33,5 +32,8 @@ typedef void (^JSTTextViewDragHandler)(NSTextView *draggedObject, NSString *drag
 - (void)parseCode:(id)sender;
 - (JSTTextViewTheme) theme;
 - (void)setTheme:(JSTTextViewTheme)theme;
+
+- (JSTTextViewTheme) theme;
+- (void) setTheme:(JSTTextViewTheme)theme;
 
 @end

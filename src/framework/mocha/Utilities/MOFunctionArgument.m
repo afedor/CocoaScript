@@ -531,7 +531,7 @@ typedef struct { char a; BOOL b; } struct_C_BOOL;
     id type = ([symbol respondsToSelector:@selector(type)] ? [symbol type] : nil);
 #endif
     
-    return type;
+    return [self expandSymbolStructType:type];
 }
 
 + (NSString *)structureTypeEncodingDescription:(NSString *)structureTypeEncoding {
@@ -723,16 +723,16 @@ typedef struct { char a; BOOL b; } struct_C_BOOL;
         return NO;
     }
     
-    Mocha *runtime = [Mocha runtimeWithContext:ctx];
-    
     switch (typeEncoding) {
         case _C_ID:
         case _C_CLASS: {
+            Mocha *runtime = [Mocha runtimeWithContext:ctx];
             id __autoreleasing object = [runtime objectForJSValue:value];
             *(void**)ptr = (__bridge void *)object;
             return YES;
         }
         case _C_PTR: {
+            Mocha *runtime = [Mocha runtimeWithContext:ctx];
             id __autoreleasing object = [runtime objectForJSValue:value];
             if ([object isKindOfClass:[MOPointerValue class]]) {
                 *(void**)ptr = [object pointerValue];
@@ -826,16 +826,21 @@ typedef struct { char a; BOOL b; } struct_C_BOOL;
         return NO;
     }
     
-    Mocha *runtime = [Mocha runtimeWithContext:ctx];
-    
     switch (typeEncoding) {
         case _C_ID:    
         case _C_CLASS: {
+            Mocha *runtime = [Mocha runtimeWithContext:ctx];
             id __autoreleasing object = (__bridge id)(*(void**)ptr);
             *value = [runtime JSValueForObject:object];
             return YES;
         }
         case _C_PTR: {
+            // we make a special case if the type is actually already a JSValueRef
+            if (fullTypeEncoding != nil && [fullTypeEncoding containsString:@"OpaqueJSValue"]) {
+                *value = *(JSValueRef*)ptr;
+                return YES;
+            }
+            Mocha *runtime = [Mocha runtimeWithContext:ctx];
             void* pointer = *(void**)ptr;
             MOPointerValue *object = [[MOPointerValue alloc] initWithPointerValue:pointer typeEncoding:fullTypeEncoding];
             *value = [runtime JSValueForObject:object];
@@ -905,9 +910,15 @@ typedef struct { char a; BOOL b; } struct_C_BOOL;
                 return YES;
             }
             
-            // Convert to NSString and then to JavaScript string
-            NSString *name = [NSString stringWithUTF8String:charPtr];
-            JSStringRef    jsName = JSStringCreateWithCFString((__bridge CFStringRef)name);
+            CFStringRef name = CFStringCreateWithCString(NULL, charPtr, kCFStringEncodingUTF8);
+            if (name == NULL) {
+                // for some reason, in some case, the string can be nil. Sigh.
+                // https://sketchplugins.com/d/1175-cfarray-to-nsarray/9
+                // Better throw an Error than crash Sketch
+                return NO;
+            }
+            JSStringRef jsName = JSStringCreateWithCFString(name);
+            CFRelease(name);
             *value = JSValueMakeString(ctx, jsName);
             JSStringRelease(jsName);
             
@@ -919,6 +930,10 @@ typedef struct { char a; BOOL b; } struct_C_BOOL;
 }
 
 + (NSInteger)structureFromJSObject:(JSObjectRef)object inContext:(JSContextRef)ctx inParentJSValueRef:(JSValueRef)parentValue cString:(char *)c storage:(void **)ptr {
+    if (!c) {
+        return 0;
+    }
+    
     id structureName = [MOFunctionArgument structureNameFromStructureTypeEncoding:[NSString stringWithUTF8String:c]];
     char *c0 = c;
     
@@ -1068,17 +1083,21 @@ typedef struct { char a; BOOL b; } struct_C_BOOL;
                     *convertedValueCount = *convertedValueCount+1;
                 }
             }
-            
+
             id objValue = [runtime objectForJSValue:valueJS];
             [memberNames addObject:propertyName];
             [memberValues setObject:objValue forKey:propertyName];
         }
     }
     
-    MOStruct *structure = [MOStruct structureWithName:structureName memberNames:memberNames];
+    MOStruct *structure = [MOStruct structureWithName:structureName memberNames:memberNames runtime:runtime];
     for (NSString *name in memberNames) {
         id memberValue = [memberValues objectForKey:name];
         [structure setObject:memberValue forMemberName:name];
+        JSValueRef memberJS = [runtime JSValueForObject:memberValue];
+        if (memberJS) {
+            JSValueProtect(ctx, memberJS);
+        }
     }
     
     JSValueRef jsValue = [runtime JSValueForObject:structure];
@@ -1089,6 +1108,71 @@ typedef struct { char a; BOOL b; } struct_C_BOOL;
     }
     
     return c - c0 - 1;
+}
+
++ (BOOL)isHighSierraOrHigher {
+    return [[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:(NSOperatingSystemVersion){10,13,0}];
+}
+
+/**
+ This method is only called when running 10.13 or higher.
+ 
+ The method takes a symbol type string like '{CGRect="origin"{CGPoint}"size"{CGSize}}' and creates a dictionary
+ with keys = ["CGPoint", "CGSize"]. Whose values are: ['CGPoint="x"d"y"d', 'CGSize="width"d"height"d']
+ 
+ The method does this by looking up the type descriptions for each of the structs.
+ */
++ (NSDictionary <NSString *, NSString *> *)memberStructs:(NSString *)symbolType {
+    NSMutableDictionary <NSString *, NSString *> *memberStructsDictionary = [NSMutableDictionary new];
+    
+    // First strip off the initial { and final } characters from the symbol type after checking the string is long enough.
+    if (symbolType.length < 3) {
+        return memberStructsDictionary.copy;
+    }
+    
+    NSAssert([symbolType hasPrefix:@"{"] || [symbolType hasPrefix:@"^{"], @"Bridging support symbol is malformed. Missing \"{\" or \"^{\". %@", symbolType);
+    NSAssert([symbolType hasSuffix:@"}"], @"Bridging support symbol is malformed. Missing \"{\". %@", symbolType);
+    
+    symbolType = [symbolType substringWithRange:NSMakeRange([symbolType hasPrefix:@"^{"] ? 2 : 1, symbolType.length - 2)];
+    
+    // Create an array of strings separated by the { character.
+    NSArray <NSString *> *memberStructs = [symbolType componentsSeparatedByString:@"{"];
+
+    NSEnumerator <NSString *> *enumerator = [memberStructs objectEnumerator];
+    
+    // Drop the first object as it precedes the first "{" so doesn't represent a struct type.
+    (void)enumerator.nextObject;
+    
+    NSString *structName;
+    while ((structName = enumerator.nextObject)) {
+        NSRange locationOfEndBracket = [structName rangeOfString:@"}"];
+        if (locationOfEndBracket.location == NSNotFound) {
+            continue;
+        }
+        
+        structName = [structName substringWithRange:NSMakeRange(0, locationOfEndBracket.location)];
+        NSString *structNameReplacement = [self structureFullTypeEncodingFromStructureName:structName];
+        if (!structNameReplacement) {
+            continue;
+        }
+        
+        // Only add the struct entry for the member if the replacement string value is long enough.
+        if (structNameReplacement.length > 2) {
+            memberStructsDictionary[structName] = [structNameReplacement substringWithRange:NSMakeRange(1, structNameReplacement.length - 2)];
+        }
+    }
+    return memberStructsDictionary.copy;
+}
+
++ (NSString *)expandSymbolStructType:(NSString *)symbolType {
+    if (symbolType && self.isHighSierraOrHigher) {
+        NSDictionary <NSString *, NSString *> *memberStructReplacements = [self memberStructs:symbolType];
+        for (NSString *memberStructName in memberStructReplacements.allKeys) {
+            symbolType = [symbolType stringByReplacingOccurrencesOfString:memberStructName withString:memberStructReplacements[memberStructName]];
+        }
+        return symbolType;
+    }
+    return symbolType;
 }
 
 @end

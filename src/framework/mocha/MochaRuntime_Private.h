@@ -14,7 +14,7 @@
 
 + (Mocha *)runtimeWithContext:(JSContextRef)ctx;
 
-- (id)initWithGlobalContext:(JSGlobalContextRef)ctx;
+- (id)initWithName:(NSString*)name;
 
 @property (readonly) JSGlobalContextRef context;
 
@@ -28,18 +28,21 @@
 + (NSDictionary *)dictionaryForJSHash:(JSObjectRef)hashValue inContext:(JSContextRef)ctx;
 
 - (JSValueRef)JSValueForObject:(id)object;
+- (JSValueRef)JSValueForObject:(id)object shouldCreateBox:(BOOL)shouldCreateBox;
 
 - (id)objectForJSValue:(JSValueRef)value;
 - (id)objectForJSValue:(JSValueRef)value unboxObjects:(BOOL)unboxObjects;
 
 // JSObject <-> id
-- (JSObjectRef)boxedJSObjectForObject:(id)object;
+- (JSObjectRef)boxedJSObjectForObject:(id)object shouldCreateBox:(BOOL)shouldCreateBox;
 - (id)unboxedObjectForJSObject:(JSObjectRef)jsObject;
 
 // Object storage
 - (id)objectWithName:(NSString *)name;
 - (JSValueRef)setObject:(id)object withName:(NSString *)name;
+- (JSValueRef)setJSValue:(JSValueRef)jsValue withName:(NSString *)name;
 - (JSValueRef)setObject:(id)object withName:(NSString *)name attributes:(JSPropertyAttributes)attributes;
+- (JSValueRef)setJSValue:(JSValueRef)jsValue withName:(NSString *)name attributes:(JSPropertyAttributes)attributes;
 - (BOOL)removeObjectWithName:(NSString *)name;
 
 // Evaluation

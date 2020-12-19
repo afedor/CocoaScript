@@ -246,7 +246,7 @@
                         }
                     }
                     
-                    debug(@"[tok stringValue]: '%@'", path);
+//                    debug(@"[tok stringValue]: '%@'", path);
                     
                     continue;
                 }
@@ -391,8 +391,10 @@
                 [methodArgs addObject:[currentArgs componentsJoinedByString:@" "]];
                 [currentArgs removeAllObjects];
             }
-            
-            [selector appendString:lastWord];
+
+            if (lastWord) {
+                [selector appendString:lastWord];
+            }
             [selector appendString:value];
         }
         else {

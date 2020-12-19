@@ -11,7 +11,6 @@
 #import "TDParseKit.h"
 #import "NoodleLineNumberView.h"
 #import "TETextUtils.h"
-#import <Carbon/Carbon.h>
 
 static NSString *JSTQuotedStringAttributeName = @"JSTQuotedString";
 static NSString *JSTIndent = @"    ";
@@ -24,8 +23,8 @@ static NSString *JSTIndent = @"    ";
 @property (assign) CGPoint initialDragPoint;
 @property (strong) NSNumber *initialNumber;
 @property (strong) NSMutableDictionary *numberRanges;
-@property (strong) NSDictionary *lightCodeHighlightingColors;
-@property (strong) NSDictionary *darkCodeHighlightingColors;
+@property (assign) BOOL parsingInResponseToEdit;
+@property (strong) NSDictionary *codeHighlightingColors;
 @end
 
 
@@ -41,7 +40,7 @@ static NSString *JSTIndent = @"    ";
     
 	if (self != nil) {
         [self initThemes];
-        [self performSelector:@selector(setupLineViewAndStuff) withObject:nil afterDelay:0];
+        [self setupLineViewAndStuff];
         [self setSmartInsertDeleteEnabled:NO];
         [self setAutomaticQuoteSubstitutionEnabled:NO];
     }
@@ -54,8 +53,7 @@ static NSString *JSTIndent = @"    ";
     self = [super initWithCoder:aDecoder];
 	if (self != nil) {
         [self initThemes];
-        // what's the right way to do this?
-        [self performSelector:@selector(setupLineViewAndStuff) withObject:nil afterDelay:0];
+        [self setupLineViewAndStuff];
         [self setSmartInsertDeleteEnabled:NO];
         [self setAutomaticQuoteSubstitutionEnabled:NO];
     }
@@ -63,9 +61,51 @@ static NSString *JSTIndent = @"    ";
     return self;
 }
 
+- (void)initThemes {
+    self.codeHighlightingColors = @{
+         @(JSTTextViewThemeDark): @{
+             @"keyword.control": [NSColor colorWithRed:0.81 green:0.43 blue:0.92 alpha:1],
+             @"storage": [NSColor colorWithRed:0.81 green:0.43 blue:0.92 alpha:1],
+             @"constant": [NSColor colorWithRed:0.98 green:0.78 blue:0.25 alpha:1.0],
+             @"support.class": [NSColor colorWithRed:0.98 green:0.78 blue:0.25 alpha:1.0],
+             @"support.function": [NSColor colorWithRed:0.40 green:0.83 blue:1.00 alpha:1.0],
+             @"none": [NSColor colorWithRed:1 green:1 blue:1 alpha:0.85],
+             @"string": [NSColor colorWithRed:0.57 green:0.87 blue:0.25 alpha:1.0],
+             @"constant.numeric": [NSColor colorWithRed:0.98 green:0.78 blue:0.25 alpha:1.0],
+             @"comment": [NSColor colorWithRed:1 green:1 blue:1 alpha:0.5],
+             @"source.js keyword.operators": [NSColor colorWithRed:0.40 green:0.83 blue:1.00 alpha:1.0]
+        },
+        @(JSTTextViewThemeLight): @{
+             @"keyword.control": [NSColor colorWithRed:0.54 green:0.09 blue:0.66 alpha:1.0],
+             @"storage": [NSColor colorWithRed:0.54 green:0.09 blue:0.66 alpha:1.0],
+             @"constant": [NSColor colorWithRed:0.73 green:0.53 blue:0.00 alpha:1.0],
+             @"support.class": [NSColor colorWithRed:0.73 green:0.53 blue:0.00 alpha:1.0],
+             @"support.function": [NSColor colorWithRed:0.15 green:0.58 blue:0.75 alpha:1.0],
+             @"none": [NSColor colorWithRed:0 green:0 blue:0 alpha:0.85],
+             @"string": [NSColor colorWithRed:0.32 green:0.62 blue:0.00 alpha:1.0],
+             @"constant.numeric": [NSColor colorWithRed:0.73 green:0.53 blue:0.00 alpha:1.0],
+             @"comment": [NSColor colorWithRed:0 green:0 blue:0 alpha:0.5],
+             @"source.js keyword.operators": [NSColor colorWithRed:0.15 green:0.58 blue:0.75 alpha:1.0]
+        }
+    };
+}
+
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
-    
+}
+
+- (JSTTextViewTheme) theme {
+    if (!self._theme) {
+        return JSTTextViewThemeDefault;
+    }
+    return self._theme;
+}
+
+- (void) setTheme:(JSTTextViewTheme)newTheme {
+    if (self.theme != newTheme) {
+        self._theme = newTheme;
+        [self parseCode:self];
+    }
 }
 
 - (void)initThemes {
@@ -116,7 +156,7 @@ static NSString *JSTIndent = @"    ";
     NSArray *globalObjects = [NSArray arrayWithObjects:@"Array", @"Date", @"Map", @"Boolean", @"Number", @"Object", @"Proxy", @"Reflect", @"RegExp", @"Set", @"String", @"Symbol", @"WeakMap", @"WeakSet", @"EvalError", @"InternalError", @"RangeError", @"ReferenceError", @"SyntaxError", @"TypeError", @"URIError", @"Error", @"Math", @"console", @"JSON", @"Promise", nil];
     
     NSArray *globalFunctions = [NSArray arrayWithObjects:@"clearInterval", @"clearTimeout", @"decodeURI", @"decodeURIComponent", @"encodeURI", @"encodeURIComponent", @"escape", @"eval", @"isFinite", @"isNaN", @"parseFloat", @"parseInt", @"require", @"setInterval", @"setTimeout", @"super", @"unescape", @"uneval", nil];
-    
+
     NSMutableDictionary *keywords = [NSMutableDictionary dictionary];
     
     for (NSString *word in controlKeywords) {
@@ -186,7 +226,7 @@ static NSString *JSTIndent = @"    ";
     [self.numberRanges removeAllObjects];
     NSUInteger sourceLoc = 0;
     
-    NSDictionary *colors = [self colors];
+    NSDictionary *colors = self.codeHighlightingColors[@(self.theme)];
     
     while ((tok = [tokenizer nextToken]) != eof) {
         
@@ -232,9 +272,17 @@ static NSString *JSTIndent = @"    ";
 }
 
 
-
-- (void) textStorageDidProcessEditing:(NSNotification *)note {
-    [self parseCode:nil];
+- (void)textStorage:(NSTextStorage *)textStorage didProcessEditing:(NSTextStorageEditActions)editedMask range:(NSRange)editedRange changeInLength:(NSInteger)delta {
+    // SD: calling parseCode directly from here was causing the selection to be messed up when deleting characters - seemingly some sort of timing issue.
+    //     deferring the parse has fixed that, but at the expense of causing potential recursion since the parse then seems to register as another edit.
+    //     to avoid this, I've added the parsingInResponseToEdit flag, but it's all a bit clumsy; a better fix might be to sort out the original deletion problem
+    if (!self.parsingInResponseToEdit) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.parsingInResponseToEdit = YES;
+            [self parseCode:nil];
+            self.parsingInResponseToEdit = NO;
+        });
+    }
 }
 
 - (NSArray *)writablePasteboardTypes {
@@ -243,28 +291,29 @@ static NSString *JSTIndent = @"    ";
 
 - (void)insertTab:(id)sender {
     NSRange selectedRange = self.selectedRange;
+    NSString* padding = @"  ";
     if (selectedRange.location == NSNotFound) {
-        return [self insertText:JSTIndent];
+        return [self insertText:padding];
     }
     
     // if we have some selected lines, then indent them all
     NSString *content = self.string;
     
     NSRange lineRange = [content lineRangeForRange:selectedRange];
-    
+
     NSString *toProcess = [content substringWithRange:lineRange];
     NSArray *lines = [toProcess componentsSeparatedByString:@"\n"];
     NSMutableArray *modLines = [NSMutableArray arrayWithCapacity:lines.count];
-    NSUInteger paddingLength = JSTIndent.length;
+    NSUInteger paddingLength = padding.length;
     
     __block NSUInteger totalShift = 0;
     [lines enumerateObjectsUsingBlock:^(id obj, NSUInteger index, BOOL *stop) {
         NSString *line = obj;
         if (line.length)
             totalShift += paddingLength;
-        [modLines addObject:[JSTIndent stringByAppendingString:line]];
+        [modLines addObject:[padding stringByAppendingString:line]];
     }];
-    if ([modLines.lastObject isEqualToString:JSTIndent])
+    if ([modLines.lastObject isEqualToString:padding])
     {
         [modLines removeLastObject];
         [modLines addObject:@""];
@@ -298,7 +347,7 @@ static NSString *JSTIndent = @"    ";
         NSUInteger lineLength = line.length;
         NSUInteger shift = 0;
         
-        for (shift = 0; shift < JSTIndent.length; shift++)
+        for (shift = 0; shift < 2; shift++)
         {
             if (shift >= lineLength)
                 break;
@@ -334,22 +383,22 @@ static NSString *JSTIndent = @"    ";
     
 }
 
-- (void)insertText:(id)insertString {
-    
+- (void)insertText:(id)insertString replacementRange:(NSRange)replacementRange {
+
     if (!([JSTPrefs boolForKey:@"codeCompletionEnabled"])) {
-        [super insertText:insertString];
+        [super insertText:insertString replacementRange:replacementRange];
         return;
     }
     
     // make sure we're not doing anything fance in a quoted string.
-    if (NSMaxRange([self selectedRange]) < [[self textStorage] length] && [[[self textStorage] attributesAtIndex:[self selectedRange].location effectiveRange:nil] objectForKey:JSTQuotedStringAttributeName]) {
-        [super insertText:insertString];
+    if (NSMaxRange(replacementRange) < [[self textStorage] length] && [[[self textStorage] attributesAtIndex:replacementRange.location effectiveRange:nil] objectForKey:JSTQuotedStringAttributeName]) {
+        [super insertText:insertString replacementRange:replacementRange];
         return;
     }
     
     if ([@")" isEqualToString:insertString] && [_lastAutoInsert isEqualToString:@")"]) {
         
-        NSRange nextRange   = [self selectedRange];
+        NSRange nextRange   = replacementRange;
         nextRange.length = 1;
         
         if (NSMaxRange(nextRange) <= [[self textStorage] length]) {
@@ -368,8 +417,8 @@ static NSString *JSTIndent = @"    ";
     
     [self setLastAutoInsert:nil];
     
-    [super insertText:insertString];
-    
+    [super insertText:insertString replacementRange:replacementRange];
+
     NSRange currentRange = [self selectedRange];
     NSRange r = [self selectionRangeForProposedRange:currentRange granularity:NSSelectByParagraph];
     BOOL atEndOfLine = (NSMaxRange(r) - 1 == NSMaxRange(currentRange));
@@ -442,7 +491,7 @@ static NSString *JSTIndent = @"    ";
 
 - (BOOL)xrespondsToSelector:(SEL)aSelector {
     
-    debug(@"%@: %@?", [self class], NSStringFromSelector(aSelector));
+//    debug(@"%@: %@?", [self class], NSStringFromSelector(aSelector));
     
     return [super respondsToSelector:aSelector];
     
@@ -788,7 +837,7 @@ static NSString *JSTIndent = @"    ";
 - (void)mouseMoved:(NSEvent *)theEvent {
     
     // only do this if only the command key is down.
-    if ((GetCurrentKeyModifiers() != cmdKey)) {
+    if ((NSCommandKeyMask & theEvent.modifierFlags) == false) {
         [super mouseMoved:theEvent];
         return;
     }
@@ -822,7 +871,7 @@ static NSString *JSTIndent = @"    ";
         return;
     }
     
-    if ((GetCurrentKeyModifiers() != cmdKey)) {
+    if ((NSCommandKeyMask & theEvent.modifierFlags) == false) {
         [super mouseDown:theEvent];
         return;
     }
@@ -849,7 +898,7 @@ static NSString *JSTIndent = @"    ";
     }
     
     
-    if ((GetCurrentKeyModifiers() != cmdKey)) {
+    if ((NSCommandKeyMask & theEvent.modifierFlags) == false) {
         [super mouseDragged:theEvent];
         return;
     }
@@ -894,7 +943,7 @@ static NSString *JSTIndent = @"    ";
         return;
     }
     
-    if ((GetCurrentKeyModifiers() != cmdKey)) {
+    if ((NSCommandKeyMask & theEvent.modifierFlags) == false) {
         [super mouseUp:theEvent];
         return;
     }

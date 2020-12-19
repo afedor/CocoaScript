@@ -12,9 +12,13 @@
 @class Mocha;
 @class COScript;
 
+@protocol COPrintController
+- (void)scriptEncounteredException:(NSException*)exception;
+- (void)print:(id)s;
+@end
 
-@protocol CODebugController
-- (void)output:(NSString*)format args:(va_list)args;
+@protocol COFlowDelegate
+- (void)didClearEventStack:(COScript*)coscript;
 @end
 
 @interface COScript : NSObject {
@@ -26,19 +30,28 @@
     int _nextFiberId;
 }
 
-@property (weak) id printController;
-@property (weak) id errorController;
+@property (weak) id<COPrintController> printController;
 @property (retain) NSMutableDictionary *env;
 @property (assign) BOOL shouldPreprocess;
 @property (assign) BOOL shouldKeepAround;
+@property (strong) NSString* processedSource;
+@property (strong, nonatomic) NSDictionary* coreModuleMap;
+
+- (instancetype)initWithCoreModules:(NSDictionary*)coreModules andName:(NSString*)name;
+
+/// Used by tests to get a clean state
+// Shouldn't be used in the real world
++ (void)resetCache;
 
 - (void)cleanup;
 - (void)garbageCollect;
 - (id)executeString:(NSString*) str;
 - (id)executeString:(NSString*)str baseURL:(NSURL*)base;
 - (void)pushObject:(id)obj withName:(NSString*)name;
+- (void)pushJSValue:(JSValueRef)obj withName:(NSString*)name;
 - (void)deleteObjectWithName:(NSString*)name;
-- (void)print:(NSString*)s;
+- (void)print:(id)s;
+- (JSValueRef)require:(NSString *)module;
 - (BOOL)shouldKeepRunning;
 
 - (JSGlobalContextRef)context;
@@ -56,7 +69,9 @@
 + (id)app:(NSString*)app;
 + (COScript*)currentCOScript;
 
-+ (id)setDebugController:(id<CODebugController>)debugController;
++ (id)setFlowDelegate:(id<COFlowDelegate>)flowDelegate;
+
+- (void)fiberWasCleared;
 
 @end
 

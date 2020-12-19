@@ -21,7 +21,11 @@
 }
 
 - (void)cleanupFibers {
-    for (COSFiber *fiber in _activeFibers) {
+    if (!_activeFibers) {
+        return;
+    }
+
+    for (COSFiber *fiber in [_activeFibers copy]) {
         [fiber cleanup];
     }
 
@@ -37,9 +41,11 @@
     }
     
     [_activeFibers removeObject:fiber];
+    
+    [self fiberWasCleared];
 }
 
-- (id)createFiber {
+- (COSFiber *)createFiber {
     
     COSFiber *fiber = [COSFiber createWithCocoaScript:self];
     [self addFiber:fiber];

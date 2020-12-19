@@ -102,12 +102,16 @@
 
 @implementation NSApplication (COSExtras)
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 - (id)open:(NSString*)pathToFile {
     
     NSError *err = nil;
     
     NSURL *url = [NSURL fileURLWithPath:pathToFile];
     
+    // TODO - this call needs replacing as it is deprecated, but the new API is async so it requires a little bit of work
     id doc = [[NSDocumentController sharedDocumentController] openDocumentWithContentsOfURL:url
                                                                                     display:YES
                                                                                       error:&err];
@@ -133,6 +137,8 @@
     
     return button;
 }
+
+#pragma clang diagnostic pop
 
 - (NSInteger)displayDialog:(NSString*)msg {
     

@@ -7,54 +7,81 @@
 //
 
 #import "MOBox.h"
-#import "MochaRuntime_Private.h"
+#import "MOMethod.h"
+#import "MOBridgeSupportSymbol.h"
+#import "MOFunctionArgument.h"
+#import "MOClosure.h"
 
 @implementation MOBox
 {
   BOOL objectIsProtected;
 }
 
-@synthesize representedObject=_representedObject;
-@synthesize JSObject=_JSObject;
-@synthesize runtime=_runtime;
-@synthesize lastAccessDate=_lastAccessDate;
+#if MOCHA_DEBUG_CRASHES
+static NSUInteger initCount = 0;
+#endif
 
-- (instancetype)init
-{
-  if ((self = [super init]) == nil)
-    return nil;
-  _lastAccessDate = [NSDate date];
-  return self;
+
+
+- (id)initWithManager:(MOBoxManager *)manager object:(id)object jsObject:(JSObjectRef)jsObject {
+    self = [super init];
+    if (self) {
+        NSAssert(manager != nil, @"valid manager");
+        _manager = manager;
+        _representedObject = object;
+#if MOCHA_DEBUG_CRASHES
+        _representedObjectCanaryDesc = [NSString stringWithFormat:@"box: %p\nobject: %p %@\njs object: %p\nboxed at: %@\n", self, object, object, jsObject, [NSDate date]];
+        _count = initCount++;
+#endif
+        _JSObject = jsObject;
+        JSObjectSetPrivate(jsObject, (__bridge void*)self);
+//        debug(@"set private for %p to %p (%@)", jsObject, self, [_representedObject className]);
+    }
+    
+    return self;
+}
+
+- (void)disassociateObject {
+//#if MOCHA_DEBUG_CRASHES
+//    debug(@"dissassociated %p %ld", self, _count);
+//#else
+//    debug(@"dissassociated %p", self);
+//#endif
+    if (_JSObject) {
+        JSObjectSetPrivate(_JSObject, nil);
+//        debug(@"cleared private for %p", _JSObject);
+        _JSObject = nil;
+    }
+
+    if (_manager) {
+        _representedObject = nil;
+#if MOCHA_DEBUG_CRASHES
+        _representedObjectCanaryDesc = nil;
+#endif
+        _manager = nil;
+    } else {
+#if MOCHA_DEBUG_CRASHES
+        debug(@"shouldn't have been disassociated already %@", _representedObjectCanaryDesc);
+#else
+        debug(@"shouldn't have been disassociated already %@", _representedObject);
+#endif
+    }
 }
 
 - (void)dealloc {
-    //debug(@"MOBox dealloc releasing: '%@'", _representedObjectCanaryDesc);
-    if (objectIsProtected)
-      [self unprotectObject];
-}
-
-- (JSObjectRef)JSObject
-{
-  self.lastAccessDate = [NSDate date];
-  return _JSObject;
-}
-
-- (void)protectObject
-{
-  NSAssert(objectIsProtected == NO, @"Trying to protect an MOBox object that is already protected");
-  if ( self.runtime.context ) {
-    JSValueProtect(self.runtime.context, _JSObject);
-    objectIsProtected = YES;
-  }
-}
-
-- (void)unprotectObject
-{
-  NSAssert(objectIsProtected, @"Trying to un-protect an MOBox object that is not protected");
-  if ( self.runtime.context ) {
-    objectIsProtected = NO;
-    JSValueUnprotect(self.runtime.context, _JSObject);
-  }
+//#if MOCHA_DEBUG_CRASHES
+//    debug(@"dealloced %p %ld", self, _count);
+//#else
+//    debug(@"dealloced %p", self);
+//#endif
+    if (_manager || _JSObject) {
+//#if MOCHA_DEBUG_CRASHES
+//        debug(@"box should have been disassociated for %@", _representedObjectCanaryDesc);
+//#else
+//        debug(@"box should have been disassociated for %@", _representedObject);
+//#endif
+        [self disassociateObject];
+    }
 }
 
 @end

@@ -27,22 +27,17 @@
     
 }
 
-- (void)dealloc {
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
-}
-
 - (void)cleanup {
-    
-    [super cleanup];
-    
-    _jsfunc = nil;
+    [self cancel];
 }
 
 - (void)cancel {
     [_timer invalidate];
     _timer = nil;
     
-    [self cleanup];
+    _jsfunc = nil;
+    
+    [super cleanup];
 }
 
 - (void)timerHit:(NSTimer*)timer {

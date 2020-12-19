@@ -24,6 +24,7 @@
 
 #import "MOBox.h"
 #import "MOAllocator.h"
+#import "CODebugController.h"
 
 #import <objc/runtime.h>
 #import <objc/message.h>
@@ -34,6 +35,7 @@
 #else
 #import <ffi/ffi.h>
 #endif
+
 
 @interface NSMethodSignature (Mocha)
 - (NSString *)typeEncoding;
@@ -94,7 +96,7 @@ NSString * MOJSValueToString(JSContextRef ctx, JSValueRef value, JSValueRef *exc
 #pragma mark -
 #pragma mark Invocation
 
-JSValueRef MOSelectorInvoke(id target, SEL selector, JSContextRef ctx, size_t argumentCount, const JSValueRef arguments[], JSValueRef *exception) {
+JSValueRef _MOSelectorInvoke(id target, SEL selector, JSContextRef ctx, size_t argumentCount, const JSValueRef arguments[], JSValueRef *exception) {
     Mocha *runtime = [Mocha runtimeWithContext:ctx];
     
     NSMethodSignature *methodSignature = [target methodSignatureForSelector:selector];
@@ -123,7 +125,7 @@ JSValueRef MOSelectorInvoke(id target, SEL selector, JSContextRef ctx, size_t ar
         NSUInteger argIndex = i + 2;
         const char * argType = [methodSignature getArgumentTypeAtIndex:argIndex];
         
-        debug(@"argIndex: %ld", argIndex);
+//        debug(@"argIndex: %ld", argIndex);
         
         // MOBox
         if ([object isKindOfClass:[MOBox class]]) {
@@ -278,8 +280,7 @@ JSValueRef MOSelectorInvoke(id target, SEL selector, JSContextRef ctx, size_t ar
     return returnValue;
 }
 
-
-JSValueRef MOFunctionInvoke(id function, JSContextRef ctx, size_t argumentCount, const JSValueRef arguments[], JSValueRef *exception) {
+JSValueRef _MOFunctionInvoke(id function, JSContextRef ctx, size_t argumentCount, const JSValueRef arguments[], JSValueRef *exception) {
     Mocha *runtime = [Mocha runtimeWithContext:ctx];
     
     JSValueRef value = NULL;
@@ -295,9 +296,9 @@ JSValueRef MOFunctionInvoke(id function, JSContextRef ctx, size_t argumentCount,
     
     id block = nil;
     
-    #pragma message "FIXME: Check to see if function is nil or not."
+    // FIXME: Check to see if function is nil or not."
     
-    // NSLog(@"function: %@", function);
+//    debug(@"function: %@", function);
     
     // Determine the metadata for the function call
     if ([function isKindOfClass:[MOMethod class]]) {
@@ -329,7 +330,7 @@ JSValueRef MOFunctionInvoke(id function, JSContextRef ctx, size_t argumentCount,
         
         // Make sure autorelease is ignored, since we do our own reference counting.
         if (selector == NSSelectorFromString(@"autorelease")) {
-            NSLog(@"Ignoring autorelease call on %@", target);
+            [CODebugController output:@"Ignoring autorelease call on %@", target];
             return [runtime JSValueForObject:target];
         }
         
@@ -653,6 +654,35 @@ JSValueRef MOFunctionInvoke(id function, JSContextRef ctx, size_t argumentCount,
     return value;
 }
 
+JSValueRef MOSelectorInvoke(id target, SEL selector, JSContextRef ctx, size_t argumentCount, const JSValueRef arguments[], JSValueRef *exception) {
+    for (NSUInteger n = 0; n < argumentCount; ++n) {
+        JSValueProtect(ctx, arguments[n]);
+    }
+
+    JSValueRef result = _MOSelectorInvoke(target, selector, ctx, argumentCount, arguments, exception);
+
+    for (NSUInteger n = 0; n < argumentCount; ++n) {
+        JSValueUnprotect(ctx, arguments[n]);
+    }
+
+    return result;
+}
+
+JSValueRef MOFunctionInvoke(id function, JSContextRef ctx, size_t argumentCount, const JSValueRef arguments[], JSValueRef *exception) {
+    for (NSUInteger n = 0; n < argumentCount; ++n) {
+        JSValueProtect(ctx, arguments[n]);
+    }
+
+    JSValueRef result = _MOFunctionInvoke(function, ctx, argumentCount, arguments, exception);
+
+    for (NSUInteger n = 0; n < argumentCount; ++n) {
+        JSValueUnprotect(ctx, arguments[n]);
+    }
+
+    return result;
+}
+
+
 BOOL MOSelectorIsVariadic(Class klass, SEL selector) {
     NSString *className = [NSString stringWithUTF8String:class_getName(klass)];
     
@@ -697,7 +727,7 @@ MOFunctionArgument * MOFunctionArgumentForTypeEncoding(NSString *typeEncoding) {
     return argument;
 }
 
-NSArray * MOParseObjCMethodEncoding(const char *typeEncoding) {
+NSArray<MOFunctionArgument *> * MOParseObjCMethodEncoding(const char *typeEncoding) {
     NSMutableArray *argumentEncodings = [NSMutableArray array];
     char *argsParser = (char *)typeEncoding;
     
@@ -797,6 +827,8 @@ NSArray * MOParseObjCMethodEncoding(const char *typeEncoding) {
 #   define SMALL_STRUCT_LIMIT     8
 #elif defined(__x86_64__) 
 #   define SMALL_STRUCT_LIMIT    16
+#elif defined(__arm64)
+#   define SMALL_STRUCT_LIMIT    16
 #elif TARGET_OS_IPHONE
 // TOCHECK
 #   define SMALL_STRUCT_LIMIT    4
@@ -844,6 +876,10 @@ BOOL MOInvocationShouldUseStret(NSArray *arguments) {
 }
 
 void * MOInvocationGetObjCCallAddressForArguments(NSArray *arguments) {
+    
+#if __arm64__
+    void *callAddress = objc_msgSend;
+#else
     BOOL usingStret    = MOInvocationShouldUseStret(arguments);
     void *callAddress = NULL;
     if (usingStret)    {
@@ -852,6 +888,7 @@ void * MOInvocationGetObjCCallAddressForArguments(NSArray *arguments) {
     else {
         callAddress = objc_msgSend;
     }
+#endif
     
 #if __i386__
     // If i386 and the return type is float/double, use objc_msgSend_fpret
@@ -871,12 +908,14 @@ void * MOInvocationGetObjCCallAddressForArguments(NSArray *arguments) {
 
 SEL MOSelectorFromPropertyName(NSString *propertyName) {
     NSString *selectorString = [propertyName stringByReplacingOccurrencesOfString:@"_" withString:@":"];
+    selectorString = [selectorString stringByReplacingOccurrencesOfString:@"::" withString:@"_"];
     SEL selector = NSSelectorFromString(selectorString);
     return selector;
 }
 
 NSString * MOSelectorToPropertyName(SEL selector) {
     NSString *selectorString = NSStringFromSelector(selector);
+    selectorString = [selectorString stringByReplacingOccurrencesOfString:@"_" withString:@"__"];
     NSString *propertyString = [selectorString stringByReplacingOccurrencesOfString:@":" withString:@"_"];
     return propertyString;
 }
@@ -899,16 +938,20 @@ NSString * MOPropertyNameToSetterName(NSString *propertyName) {
 
 typedef id (^MOJavaScriptClosureBlock)(id obj, ...);
 
+NSUInteger MOGetFunctionLength(MOJavaScriptObject *function) {
+    JSObjectRef jsFunction = [function JSObject];
+    JSContextRef ctx = [function JSContext];
+    JSStringRef lengthString = JSStringCreateWithCFString(CFSTR("length"));
+    JSValueRef value = JSObjectGetProperty(ctx, jsFunction, lengthString, NULL);
+    JSStringRelease(lengthString);
+
+    return (NSUInteger)JSValueToNumber(ctx, value, NULL);
+}
+
 id MOGetBlockForJavaScriptFunction(MOJavaScriptObject *function, NSUInteger *argCount) {
 
     if (argCount != NULL) {
-        JSObjectRef jsFunction = [function JSObject];
-        JSContextRef ctx = [function JSContext];
-        JSStringRef lengthString = JSStringCreateWithCFString(CFSTR("length"));
-        JSValueRef value = JSObjectGetProperty(ctx, jsFunction, lengthString, NULL);
-        JSStringRelease(lengthString);
-        
-        *argCount = (NSUInteger)JSValueToNumber(ctx, value, NULL);
+        *argCount = MOGetFunctionLength(function);
     }
     
     MOJavaScriptClosureBlock newBlock = (id)^(id obj, ...) {

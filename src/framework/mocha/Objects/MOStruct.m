@@ -13,27 +13,39 @@
 @implementation MOStruct {
     NSArray *_memberNames;
     NSMutableDictionary *_memberValues;
+    __weak Mocha *_runtime;
 }
 
 @synthesize name=_name;
 @synthesize memberNames=_memberNames;
 
-+ (MOStruct *)structureWithName:(NSString *)name memberNames:(NSArray *)memberNames {
-    return [[self alloc] initWithName:name memberNames:memberNames];
++ (MOStruct *)structureWithName:(NSString *)name memberNames:(NSArray *)memberNames runtime:(Mocha*)runtime {
+    return [[self alloc] initWithName:name memberNames:memberNames runtime:runtime];
 }
 
-- (id)initWithName:(NSString *)name memberNames:(NSArray *)memberNames {
+- (id)initWithName:(NSString *)name memberNames:(NSArray *)memberNames runtime:(Mocha*)runtime {
     self = [super init];
     if (self) {
         _name = [name copy];
         _memberNames = [memberNames copy];
         _memberValues = [[NSMutableDictionary alloc] init];
+        _runtime = runtime;
     }
     return self;
 }
 
 - (id)init {
-    return [self initWithName:nil memberNames:nil];
+    return [self initWithName:nil memberNames:nil runtime:nil];
+}
+
+- (void)dealloc {
+    for (NSString *name in _memberNames) {
+        id memberValue = [_memberValues objectForKey:name];
+        JSValueRef memberJS = [_runtime JSValueForObject:memberValue shouldCreateBox:NO];
+        if (memberJS) {
+            JSValueUnprotect(_runtime.context, memberJS);
+        }
+    }
 }
 
 - (NSString *)descriptionWithIndent:(NSUInteger)indent {
@@ -49,7 +61,7 @@
         [items appendString:indentString];
         [items appendString:@"    "];
         [items appendString:key];
-        [items appendString:@" = "];
+        [items appendString:@": "];
         
         id value = [_memberValues objectForKey:key];
         if ([value isKindOfClass:[MOStruct class]]) {

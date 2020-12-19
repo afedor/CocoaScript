@@ -1,8 +1,22 @@
 #import <Cocoa/Cocoa.h>
 #import "COSListener.h"
 #import "COScript.h"
+#import "CODebugController.h"
 
 BOOL JSCErrorHandlerExitOnError = YES;
+
+@interface NullDebugController : NSObject<CODebugControllerDelegate>
+
+@end
+
+@implementation NullDebugController
+
+- (void)output:(NSString*)format args:(va_list)args
+{
+    
+}
+
+@end
 
 @interface JSCErrorHandler : NSObject {
     
@@ -92,11 +106,15 @@ int main(int argc, char *argv[]) {
         }
     }
     
+    [CODebugController setDelegate:[NullDebugController new]];
+    
     id o = [t executeString:source];
     
     if (o) {
         printf("%s\n", [[o description] UTF8String]);
     }
+    
+    [t cleanup];
     
     return 0;
 }

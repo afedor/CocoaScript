@@ -32,6 +32,7 @@
 + (Mocha *)sharedRuntime;
 
 
+
 /*!
  * @property delegate
  * @abstract Gets the runtime delegate
@@ -40,6 +41,17 @@
  */
 @property (unsafe_unretained) id <MochaDelegate> delegate;
 
+
+/*!
+ * @method initWithName:
+ * @abstract Create a new runtime, with a given name.
+ *
+ * @param name
+ * The name to use for the context (for use with interactive debugging).
+ *
+ * @result An object, or nil
+ */
+- (instancetype)initWithName:(NSString*)name;
 
 /*!
  * @method evalString:
@@ -67,6 +79,19 @@
  */
 - (id)evalString:(NSString *)string atURL:(NSURL*)url;
 
+/*!
+ * @method evalString:
+ * @abstract Evalutates the specified JavaScript expression, returning the result
+ *
+ * @param string
+ * The JavaScript expression to evaluate
+ *
+ * @param url
+ * The location of the script - used for error reporting and interactive debugging.
+ *
+ * @result An object, or nil
+ */
+- (JSValueRef)evalJSString:(NSString *)string scriptPath:(NSString *)scriptPath;
 
 /*!
  * @method callFunctionWithName:
@@ -335,6 +360,9 @@
 - (void)shutdown;
 
 - (JSValueRef)JSValueForObject:(id)object;
+// we probably always want to create a box for the object if it doesn't
+// exist yet but in some cases (like when deallocating) we don't
+- (JSValueRef)JSValueForObject:(id)object shouldCreateBox:(BOOL)shouldCreateBox;
 
 @end
 
