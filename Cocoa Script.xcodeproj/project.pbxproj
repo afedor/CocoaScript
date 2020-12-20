@@ -397,7 +397,6 @@
 		2A37F4C5FDCFA73011CA2CEA /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = /System/Library/Frameworks/Foundation.framework; sourceTree = "<absolute>"; };
 		384830E01832D48500B34168 /* COSTarget.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = COSTarget.h; path = src/framework/COSTarget.h; sourceTree = "<group>"; };
 		384830E11832D48500B34168 /* COSTarget.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = COSTarget.m; path = src/framework/COSTarget.m; sourceTree = "<group>"; };
-		433A13A52286288000B8F8F0 /* BCCodeSigning.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = BCCodeSigning.xcconfig; path = ../BCFoundation/Configs/BCCodeSigning.xcconfig; sourceTree = "<group>"; };
 		5A6247AA225DE3390036F9F4 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = res/Base.lproj/JSTDocument.xib; sourceTree = "<group>"; };
 		5A6247AB225DE3390036F9F4 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = res/Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
 		5A88AD12225CB0D300635470 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.rtf; name = en; path = res/en.lproj/Credits.rtf; sourceTree = "<group>"; };
@@ -719,7 +718,6 @@
 		2A37F4AFFDCFA73011CA2CEA /* Other Sources */ = {
 			isa = PBXGroup;
 			children = (
-				433A13A52286288000B8F8F0 /* BCCodeSigning.xcconfig */,
 				CC66D826181A2A810039A0A5 /* CocoaScript_Prefix.pch */,
 				CC66D8D7181A2FC10039A0A5 /* cocoascript_tool.m */,
 				22E281E41A8BB99D006650D2 /* test.js */,
@@ -1290,7 +1288,7 @@
 		2A37F4A9FDCFA73011CA2CEA /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 1220;
+				LastUpgradeCheck = 1230;
 				TargetAttributes = {
 					8D15AC270486D014006FF6A4 = {
 						ProvisioningStyle = Automatic;
@@ -1698,6 +1696,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
 				GCC_DYNAMIC_NO_PIC = NO;
@@ -1720,6 +1719,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = src/framework/CocoaScript_Prefix.pch;
@@ -1734,7 +1734,6 @@
 		};
 		C05733CC08A9546B00998B17 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 433A13A52286288000B8F8F0 /* BCCodeSigning.xcconfig */;
 			buildSettings = {
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -1750,6 +1749,7 @@
 				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -1776,7 +1776,6 @@
 		};
 		C05733CD08A9546B00998B17 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 433A13A52286288000B8F8F0 /* BCCodeSigning.xcconfig */;
 			buildSettings = {
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -1792,6 +1791,7 @@
 				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -1894,6 +1894,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CODE_SIGN_IDENTITY = "-";
 				COPY_PHASE_STRIP = NO;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_OPTIMIZATION_LEVEL = 0;
@@ -1917,6 +1918,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CODE_SIGN_IDENTITY = "-";
 				COPY_PHASE_STRIP = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = src/framework/CocoaScript_Prefix.pch;
