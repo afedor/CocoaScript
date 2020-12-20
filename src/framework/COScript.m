@@ -161,16 +161,6 @@ static id<COFlowDelegate> COFlowDelegate = nil;
     return NO;
 }
 
-- (BOOL)shouldKeepRunning {
-    if (_shouldKeepAround) {
-        return YES;
-    }
-    if (_activeFibers != nil) {
-        return [_activeFibers count] > 0;
-    }
-    return NO;
-}
-
 
 - (JSGlobalContextRef)context {
     return [_mochaRuntime context];
@@ -565,10 +555,6 @@ NSString *currentCOScriptThreadIdentifier = @"org.jstalk.currentCOScriptHack";
     if (!JSTalkPluginList && JSTalkShouldLoadJSTPlugins) {
         [COScript loadPlugins];
     }
-	
-    if (!base && [[_env objectForKey:@"scriptURL"] isKindOfClass:[NSURL class]]) {
-        base = [_env objectForKey:@"scriptURL"];
-    }
     
     if (base) {
         [_env setObject:base forKey:@"scriptURL"];
@@ -634,11 +620,6 @@ NSString *currentCOScriptThreadIdentifier = @"org.jstalk.currentCOScriptHack";
     }
     @catch (NSException * e) {
         [self printException:e];
-        
-        NSDictionary *d = [e userInfo];
-        if ([_errorController respondsToSelector:@selector(coscript:hadError:onLineNumber:atSourceURL:)]) {
-            [_errorController coscript:self hadError:[e reason] onLineNumber:[[d objectForKey:@"line"] integerValue] atSourceURL:nil];
-        }
     }
     
     [self popAsCurrentCOScript];

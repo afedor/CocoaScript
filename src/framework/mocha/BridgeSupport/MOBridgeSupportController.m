@@ -70,11 +70,13 @@
     [_loadedLibraries addObject:library];
     
     for (NSString *name in library.symbols) {
-        
         MOBridgeSupportSymbol *symbol = [library.symbols objectForKey:name];
-        
-        [_symbols setObject:symbol forKey:name];
-
+        if ([_symbols objectForKey:name] == nil) {
+            [_symbols setObject:symbol forKey:name];
+        }
+        else {
+            //NSLog(@"Symbol with name \"%@\" is already loaded.", name);
+        }
     }
     
     return YES;

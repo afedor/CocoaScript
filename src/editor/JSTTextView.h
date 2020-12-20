@@ -20,6 +20,7 @@ typedef void (^JSTTextViewDragHandler)(NSTextView *draggedObject, NSString *drag
 
 @interface JSTTextView : NSTextView <NSTextStorageDelegate> {
     NSDictionary            *_keywords;
+    
     NSString                *_lastAutoInsert;
     NSSet                   *_ignoredSymbols;
 }
@@ -30,8 +31,6 @@ typedef void (^JSTTextViewDragHandler)(NSTextView *draggedObject, NSString *drag
 @property (copy) JSTTextViewDragHandler numberDragHandler; // will be called continuously as a number is dragged
 
 - (void)parseCode:(id)sender;
-- (JSTTextViewTheme) theme;
-- (void)setTheme:(JSTTextViewTheme)theme;
 
 - (JSTTextViewTheme) theme;
 - (void) setTheme:(JSTTextViewTheme)theme;

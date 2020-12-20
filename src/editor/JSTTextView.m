@@ -13,7 +13,6 @@
 #import "TETextUtils.h"
 
 static NSString *JSTQuotedStringAttributeName = @"JSTQuotedString";
-static NSString *JSTIndent = @"    ";
 
 @interface JSTTextView ()
 @property JSTTextViewTheme _theme;
@@ -33,6 +32,7 @@ static NSString *JSTIndent = @"    ";
 @synthesize keywords=_keywords;
 @synthesize lastAutoInsert=_lastAutoInsert;
 @synthesize ignoredSymbols=_ignoredSymbols;
+
 
 - (id)initWithFrame:(NSRect)frameRect textContainer:(NSTextContainer *)container {
     
@@ -108,32 +108,6 @@ static NSString *JSTIndent = @"    ";
     }
 }
 
-- (void)initThemes {
-    self.darkCodeHighlightingColors = @{
-        @"keyword.control": [NSColor colorWithRed:0.81 green:0.43 blue:0.92 alpha:1],
-        @"storage": [NSColor colorWithRed:0.81 green:0.43 blue:0.92 alpha:1],
-        @"constant": [NSColor colorWithRed:0.98 green:0.78 blue:0.25 alpha:1.0],
-        @"support.class": [NSColor colorWithRed:0.98 green:0.78 blue:0.25 alpha:1.0],
-        @"support.function": [NSColor colorWithRed:0.40 green:0.83 blue:1.00 alpha:1.0],
-        @"none": [NSColor colorWithRed:1 green:1 blue:1 alpha:0.85],
-        @"string": [NSColor colorWithRed:0.57 green:0.87 blue:0.25 alpha:1.0],
-        @"constant.numeric": [NSColor colorWithRed:0.98 green:0.78 blue:0.25 alpha:1.0],
-        @"comment": [NSColor colorWithRed:1 green:1 blue:1 alpha:0.5],
-        @"source.js keyword.operators": [NSColor colorWithRed:0.40 green:0.83 blue:1.00 alpha:1.0]
-    };
-    self.lightCodeHighlightingColors = @{
-         @"keyword.control": [NSColor colorWithRed:0.54 green:0.09 blue:0.66 alpha:1.0],
-         @"storage": [NSColor colorWithRed:0.54 green:0.09 blue:0.66 alpha:1.0],
-         @"constant": [NSColor colorWithRed:0.73 green:0.53 blue:0.00 alpha:1.0],
-         @"support.class": [NSColor colorWithRed:0.73 green:0.53 blue:0.00 alpha:1.0],
-         @"support.function": [NSColor colorWithRed:0.15 green:0.58 blue:0.75 alpha:1.0],
-         @"none": [NSColor colorWithRed:0 green:0 blue:0 alpha:0.85],
-         @"string": [NSColor colorWithRed:0.32 green:0.62 blue:0.00 alpha:1.0],
-         @"constant.numeric": [NSColor colorWithRed:0.73 green:0.53 blue:0.00 alpha:1.0],
-         @"comment": [NSColor colorWithRed:0 green:0 blue:0 alpha:0.5],
-         @"source.js keyword.operators": [NSColor colorWithRed:0.15 green:0.58 blue:0.75 alpha:1.0]
-     };
-}
 
 - (void)setupLineViewAndStuff {
     
@@ -179,35 +153,17 @@ static NSString *JSTIndent = @"    ";
     }
     
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(textViewDidChangeSelection:) name:NSTextViewDidChangeSelectionNotification object:self];
-    
+
     
     self.keywords = keywords;
     self.ignoredSymbols = [NSSet setWithArray:@[@"{", @"}", @"(", @")", @",", @";"]];
     
-    self.numberRanges = [NSMutableDictionary new];
+	self.numberRanges = [NSMutableDictionary new];
     
     [self parseCode:nil];
-}
-
-- (JSTTextViewTheme) theme {
-    return self._theme;
-}
-
-- (void) setTheme:(JSTTextViewTheme)newTheme {
-    if (self.theme != newTheme) {
-        self._theme = newTheme;
-        [self parseCode:self];
-    }
-}
-
-- (NSDictionary<NSString*, NSColor*>*)colors {
-    BOOL isDarkMode = self.theme == JSTTextViewThemeDark;
-    if (isDarkMode) {
-        return self.darkCodeHighlightingColors;
-    }
     
-    return self.lightCodeHighlightingColors;
 }
+
 
 - (void)parseCode:(id)sender {
     

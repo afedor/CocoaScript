@@ -13,9 +13,6 @@
 #import "MOClosure.h"
 
 @implementation MOBox
-{
-  BOOL objectIsProtected;
-}
 
 #if MOCHA_DEBUG_CRASHES
 static NSUInteger initCount = 0;

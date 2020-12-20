@@ -815,7 +815,7 @@ NSString * const MOAlreadyProtectedKey = @"moAlreadyProtectedKey";
     NSString *libPath = [frameworkPath stringByAppendingPathComponent:frameworkName];
     void *address = dlopen([libPath UTF8String], RTLD_LAZY);
     if (!address) {
-        NSLog(@"ERROR: Could not load framework dylib: %@, %@", frameworkName, libPath);
+        //NSLog(@"ERROR: Could not load framework dylib: %@, %@", frameworkName, libPath);
         return NO;
     }
 
